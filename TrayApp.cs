@@ -21,6 +21,7 @@ public sealed class TrayApp : ApplicationContext
 
     private enum Status { Disconnected, Connecting, Connected }
     private Status _status = Status.Disconnected;
+    private bool _conflictDialogShown = false;
 
     // -------------------------------------------------------------------------
     // UI controls
@@ -182,8 +183,11 @@ public sealed class TrayApp : ApplicationContext
                 if (blocker != null)
                 {
                     _log.Append($"Port blocked by '{blocker}' — close it, then the app will reconnect automatically.");
-                    if (!_settings.SuppressConflictWarning)
+                    if (!_settings.SuppressConflictWarning && !_conflictDialogShown)
+                    {
+                        _conflictDialogShown = true;
                         _log.BeginInvoke(() => ShowConflictDialog(blocker));
+                    }
                 }
                 else
                 {
@@ -602,11 +606,12 @@ public sealed class TrayApp : ApplicationContext
     private async Task CheckConflictingAppsAsync()
     {
         await Task.Delay(1500).ConfigureAwait(false); // let the app settle
-        if (_settings.SuppressConflictWarning) return;
+        if (_settings.SuppressConflictWarning || _conflictDialogShown) return;
 
         string? blocker = FindPortBlocker();
         if (blocker == null) return;
 
+        _conflictDialogShown = true;
         _log.BeginInvoke(() => ShowConflictDialog(blocker));
     }
 
