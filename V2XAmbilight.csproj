@@ -10,6 +10,8 @@
     <ApplicationHighDpiMode>SystemAware</ApplicationHighDpiMode>
     <PublishTrimmed>true</PublishTrimmed>
     <TrimmerRootDescriptor>TrimmerRoots.xml</TrimmerRootDescriptor>
+    <_SuppressWindowsFormsTrimError>true</_SuppressWindowsFormsTrimError>
+    <SuppressTrimAnalysisWarnings>true</SuppressTrimAnalysisWarnings>
   </PropertyGroup>
 
   <ItemGroup>
