@@ -179,9 +179,8 @@ public sealed class TrayApp : ApplicationContext
                 if (blocker != null)
                 {
                     _log.Append($"Port blocked by '{blocker}' — close it, then the app will reconnect automatically.");
-                    _log.BeginInvoke(() =>
-                        _tray.ShowBalloonTip(6000, "V2X Ambilight",
-                            $"Close '{blocker}' to allow V2X Ambilight to connect.", ToolTipIcon.Warning));
+                    if (!_settings.SuppressConflictWarning)
+                        _log.BeginInvoke(() => ShowConflictDialog(blocker));
                 }
                 else
                 {
