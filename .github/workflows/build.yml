@@ -26,7 +26,7 @@ jobs:
       - name: Publish self-contained exe
         run: |
           dotnet publish V2XAmbilight.csproj `
-            -c Release -r win-x64 `
+            -c Release -r win-x64 --no-self-contained `
             -p:PublishSingleFile=true `
             -o dist
 
