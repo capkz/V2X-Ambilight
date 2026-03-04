@@ -30,10 +30,10 @@ jobs:
             -p:PublishSingleFile=true -p:PublishTrimmed=true `
             -o dist
 
-      - name: Commit V2XAmbilight.exe
-        run: |
-          git config user.name "github-actions[bot]"
-          git config user.email "github-actions[bot]@users.noreply.github.com"
-          copy dist\V2XAmbilight.exe V2XAmbilight.exe
-          git add V2XAmbilight.exe
-          git diff --staged --quiet && echo "No changes to commit" || (git commit -m "ci: build V2XAmbilight.exe [skip ci]" && git push)
+      - name: Upload to GitHub Releases
+        uses: softprops/action-gh-release@v2
+        with:
+          tag_name: latest
+          name: Latest Build
+          prerelease: true
+          files: dist/V2XAmbilight.exe
