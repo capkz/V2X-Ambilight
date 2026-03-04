@@ -7,8 +7,16 @@ static class Program
         "V2XAmbilight", "crash.log");
 
     [STAThread]
-    static void Main()
+    static void Main(string[] args)
     {
+        // Elevated kill helper — launched by the app itself via runas
+        if (args.Length == 2 && args[0] == "--kill")
+        {
+            foreach (var p in System.Diagnostics.Process.GetProcessesByName(args[1]))
+                try { p.Kill(); } catch { }
+            return;
+        }
+
         // Single instance guard
         using var mutex = new Mutex(true, "V2XAmbilight_SingleInstance", out bool first);
         if (!first) return;
