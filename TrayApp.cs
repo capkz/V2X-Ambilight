@@ -372,7 +372,7 @@ public sealed class TrayApp : ApplicationContext
 
     private async Task CheckForUpdateAsync(bool silent = true)
     {
-        await Task.Delay(3000).ConfigureAwait(false); // don't hit API immediately on startup
+        if (silent) await Task.Delay(3000).ConfigureAwait(false);
         _log.Append("Checking for updates…");
         var (hasUpdate, tag, url) = await Updater.CheckAsync().ConfigureAwait(false);
 
@@ -384,18 +384,31 @@ public sealed class TrayApp : ApplicationContext
                 _updateItem.Text    = $"Update to {tag}";
                 _updateItem.Tag     = url;
                 _updateItem.Visible = true;
-                _tray.ShowBalloonTip(6000, "V2X Ambilight Update",
-                    $"Version {tag} is available. Click the tray menu to update.", ToolTipIcon.Info);
-            }
-            else if (!silent)
-            {
-                _log.Append($"Already up to date (v{Updater.CurrentVersion})");
-                _tray.ShowBalloonTip(3000, "V2X Ambilight",
-                    $"You're up to date (v{Updater.CurrentVersion}).", ToolTipIcon.Info);
+
+                if (!silent)
+                {
+                    var result = MessageBox.Show(
+                        $"Version {tag} is available.\n\nInstall now? The app will restart automatically.",
+                        "V2X Ambilight — Update Available",
+                        MessageBoxButtons.YesNo, MessageBoxIcon.Information);
+
+                    if (result == DialogResult.Yes)
+                        _ = Updater.ApplyAsync(url, _log.Append);
+                }
+                else
+                {
+                    _tray.ShowBalloonTip(6000, "V2X Ambilight Update",
+                        $"Version {tag} is available. Click the tray menu to update.", ToolTipIcon.Info);
+                }
             }
             else
             {
                 _log.Append($"Up to date (v{Updater.CurrentVersion})");
+                if (!silent)
+                    MessageBox.Show(
+                        $"You're up to date!\n\nCurrent version: v{Updater.CurrentVersion}",
+                        "V2X Ambilight — No Updates",
+                        MessageBoxButtons.OK, MessageBoxIcon.Information);
             }
         });
     }
