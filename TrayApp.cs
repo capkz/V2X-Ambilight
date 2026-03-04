@@ -31,6 +31,7 @@ public sealed class TrayApp : ApplicationContext
     private readonly ToolStripMenuItem _monitorMenu;
     private readonly ToolStripMenuItem _stripMenu;
     private readonly ToolStripMenuItem _startupItem;
+    private readonly ToolStripMenuItem _updateItem;
 
     // -------------------------------------------------------------------------
     // Constructor
@@ -60,20 +61,25 @@ public sealed class TrayApp : ApplicationContext
         _startupItem = new ToolStripMenuItem("Start with Windows", null, OnToggleStartup)
             { Checked = _settings.StartWithWindows, CheckOnClick = true };
 
+        _updateItem = new ToolStripMenuItem("Update Available!", null, OnUpdateClick)
+            { Visible = false };
+
         BuildMonitorMenu();
         BuildStripMenu();
 
         _tray.ContextMenuStrip = new ContextMenuStrip();
         _tray.ContextMenuStrip.Items.AddRange([
-            new ToolStripMenuItem("Katana V2X Ambilight") { Enabled = false },
+            new ToolStripMenuItem($"Katana V2X Ambilight  v{Updater.CurrentVersion}") { Enabled = false },
             new ToolStripSeparator(),
+            _updateItem,
             _enabledItem,
             new ToolStripSeparator(),
             _monitorMenu,
             _stripMenu,
             new ToolStripSeparator(),
             _startupItem,
-            new ToolStripMenuItem("Show Log", null, (_, _) => _log.Show()),
+            new ToolStripMenuItem("Check for Updates", null, OnCheckUpdate),
+            new ToolStripMenuItem("Show Log",          null, (_, _) => _log.Show()),
             new ToolStripSeparator(),
             new ToolStripMenuItem("Exit", null, OnExit),
         ]);
@@ -90,6 +96,9 @@ public sealed class TrayApp : ApplicationContext
 
         // Start device connection loop in background
         _ = ConnectLoopAsync(_cts.Token);
+
+        // Check for updates shortly after startup
+        _ = CheckForUpdateAsync();
     }
 
     // -------------------------------------------------------------------------
@@ -281,6 +290,46 @@ public sealed class TrayApp : ApplicationContext
             key.SetValue("V2XAmbilight", $"\"{Application.ExecutablePath}\"");
         else
             key.DeleteValue("V2XAmbilight", throwOnMissingValue: false);
+    }
+
+    private async Task CheckForUpdateAsync(bool silent = true)
+    {
+        await Task.Delay(3000).ConfigureAwait(false); // don't hit API immediately on startup
+        _log.Append("Checking for updates…");
+        var (hasUpdate, tag, url) = await Updater.CheckAsync().ConfigureAwait(false);
+
+        _log.Invoke(() =>
+        {
+            if (hasUpdate)
+            {
+                _log.Append($"Update available: {tag} (current: v{Updater.CurrentVersion})");
+                _updateItem.Text    = $"Update to {tag}";
+                _updateItem.Tag     = url;
+                _updateItem.Visible = true;
+                _tray.ShowBalloonTip(6000, "V2X Ambilight Update",
+                    $"Version {tag} is available. Click the tray menu to update.", ToolTipIcon.Info);
+            }
+            else if (!silent)
+            {
+                _log.Append($"Already up to date (v{Updater.CurrentVersion})");
+                _tray.ShowBalloonTip(3000, "V2X Ambilight",
+                    $"You're up to date (v{Updater.CurrentVersion}).", ToolTipIcon.Info);
+            }
+            else
+            {
+                _log.Append($"Up to date (v{Updater.CurrentVersion})");
+            }
+        });
+    }
+
+    private void OnCheckUpdate(object? sender, EventArgs e)
+        => _ = CheckForUpdateAsync(silent: false);
+
+    private void OnUpdateClick(object? sender, EventArgs e)
+    {
+        string url = _updateItem.Tag as string ?? "";
+        if (string.IsNullOrEmpty(url)) return;
+        _ = Updater.ApplyAsync(url, _log.Append);
     }
 
     private static string? FindPortBlocker()
