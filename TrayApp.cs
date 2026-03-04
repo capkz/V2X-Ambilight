@@ -107,6 +107,9 @@ public sealed class TrayApp : ApplicationContext
         };
         _timer.Tick += OnTick;
 
+        // Ensure the app is installed and searchable via Start Menu
+        EnsureInstalled();
+
         // Start device connection loop in background
         _ = ConnectLoopAsync(_cts.Token);
 
@@ -471,6 +474,39 @@ public sealed class TrayApp : ApplicationContext
     static readonly string InstallPath = Path.Combine(
         Environment.GetFolderPath(Environment.SpecialFolder.LocalApplicationData),
         "V2XAmbilight", "V2XAmbilight.exe");
+
+    private static void EnsureInstalled()
+    {
+        try
+        {
+            // Copy exe to permanent location so the shortcut target never goes stale
+            string current = Application.ExecutablePath;
+            if (!string.Equals(current, InstallPath, StringComparison.OrdinalIgnoreCase))
+            {
+                Directory.CreateDirectory(Path.GetDirectoryName(InstallPath)!);
+                File.Copy(current, InstallPath, overwrite: true);
+            }
+
+            // Create Start Menu shortcut so the app is searchable via Windows key
+            string shortcutPath = Path.Combine(
+                Environment.GetFolderPath(Environment.SpecialFolder.Programs),
+                "V2X Ambilight.lnk");
+
+            if (!File.Exists(shortcutPath))
+            {
+                Type? t = Type.GetTypeFromProgID("WScript.Shell");
+                if (t != null)
+                {
+                    dynamic shell    = Activator.CreateInstance(t)!;
+                    dynamic shortcut = shell.CreateShortcut(shortcutPath);
+                    shortcut.TargetPath  = InstallPath;
+                    shortcut.Description = "V2X Ambilight — Katana V2X LED sync";
+                    shortcut.Save();
+                }
+            }
+        }
+        catch { }
+    }
 
     private static void ApplyAutoStart(bool enable)
     {
