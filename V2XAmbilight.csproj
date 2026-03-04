@@ -8,6 +8,8 @@
     <ImplicitUsings>enable</ImplicitUsings>
     <AssemblyName>V2XAmbilight</AssemblyName>
     <ApplicationHighDpiMode>SystemAware</ApplicationHighDpiMode>
+    <PublishTrimmed>true</PublishTrimmed>
+    <TrimmerRootDescriptor>TrimmerRoots.xml</TrimmerRootDescriptor>
   </PropertyGroup>
 
   <ItemGroup>
