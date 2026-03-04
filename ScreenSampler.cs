@@ -22,21 +22,7 @@ public sealed class ScreenSampler : IDisposable
     /// of the bottom <paramref name="stripPercent"/>% of <paramref name="screen"/>.
     /// </summary>
     public byte[] Sample(Screen screen, int stripPercent)
-    {
-        // Re-init DXGI when screen changes or after access-lost invalidation
-        if (!_dxgi.IsValid || _dxgi.ScreenName != screen.DeviceName)
-            _dxgi.TryInitialize(screen.DeviceName);
-
-        if (_dxgi.IsValid)
-        {
-            var zones = _dxgi.CaptureZones(screen.Bounds.Width, screen.Bounds.Height, stripPercent, 7);
-            if (zones != null)
-                return zones;
-            // null = DXGI invalidated or no cached frame yet — fall through to GDI
-        }
-
-        return GdiSample(screen, stripPercent);
-    }
+        => GdiSample(screen, stripPercent);
 
     byte[] GdiSample(Screen screen, int stripPercent)
     {
