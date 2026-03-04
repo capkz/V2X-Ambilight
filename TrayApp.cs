@@ -360,14 +360,30 @@ public sealed class TrayApp : ApplicationContext
         ApplyAutoStart(_settings.StartWithWindows);
     }
 
+    static readonly string InstallPath = Path.Combine(
+        Environment.GetFolderPath(Environment.SpecialFolder.LocalApplicationData),
+        "V2XAmbilight", "V2XAmbilight.exe");
+
     private static void ApplyAutoStart(bool enable)
     {
         using var key = Registry.CurrentUser.OpenSubKey(
             @"SOFTWARE\Microsoft\Windows\CurrentVersion\Run", writable: true)!;
+
         if (enable)
-            key.SetValue("V2XAmbilight", $"\"{Application.ExecutablePath}\"");
+        {
+            // Copy exe to permanent location if not already there
+            string current = Application.ExecutablePath;
+            if (!string.Equals(current, InstallPath, StringComparison.OrdinalIgnoreCase))
+            {
+                Directory.CreateDirectory(Path.GetDirectoryName(InstallPath)!);
+                File.Copy(current, InstallPath, overwrite: true);
+            }
+            key.SetValue("V2XAmbilight", $"\"{InstallPath}\"");
+        }
         else
+        {
             key.DeleteValue("V2XAmbilight", throwOnMissingValue: false);
+        }
     }
 
     private async Task CheckForUpdateAsync(bool silent = true)

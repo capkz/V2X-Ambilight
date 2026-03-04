@@ -32,10 +32,15 @@ internal static class Updater
         catch { return (false, "", ""); }
     }
 
+    static readonly string InstallPath = Path.Combine(
+        Environment.GetFolderPath(Environment.SpecialFolder.LocalApplicationData),
+        "V2XAmbilight", "V2XAmbilight.exe");
+
     public static async Task ApplyAsync(string downloadUrl, Action<string> log)
     {
-        string tmp     = Path.Combine(Path.GetTempPath(), "V2XAmbilight_new.exe");
-        string current = Application.ExecutablePath;
+        string tmp = Path.Combine(Path.GetTempPath(), "V2XAmbilight_new.exe");
+        // Always update the install location; if running from elsewhere update that too
+        string current = File.Exists(InstallPath) ? InstallPath : Application.ExecutablePath;
         string bat     = Path.Combine(Path.GetTempPath(), "V2XAmbilight_update.bat");
 
         log("Downloading update…");
