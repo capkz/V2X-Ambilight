@@ -673,7 +673,10 @@ public sealed class TrayApp : ApplicationContext
         }
     }
 
-    /// <summary>Finds a startup registry entry whose exe path contains the process name.</summary>
+    /// <summary>
+    /// Finds a startup entry (registry Run key or Task Scheduler task) whose exe path
+    /// contains processName. Returns a prefixed key: bare = HKCU, "HKLM:" = HKLM, "TASK:" = scheduled task.
+    /// </summary>
     private static string? FindStartupKey(string processName)
     {
         const string runPath = @"SOFTWARE\Microsoft\Windows\CurrentVersion\Run";
@@ -685,11 +688,10 @@ public sealed class TrayApp : ApplicationContext
             {
                 string? val = hkcu.GetValue(name) as string;
                 if (val != null && val.Contains(processName, StringComparison.OrdinalIgnoreCase))
-                    return name; // HKCU key name
+                    return name;
             }
         }
 
-        // HKLM (read-only check — we won't offer to delete HKLM keys we can't write)
         using var hklm = Registry.LocalMachine.OpenSubKey(runPath);
         if (hklm != null)
         {
@@ -701,13 +703,22 @@ public sealed class TrayApp : ApplicationContext
             }
         }
 
+        // Fall back to Task Scheduler scan
+        string? taskPath = FindScheduledTask(processName);
+        if (taskPath != null)
+            return "TASK:" + taskPath;
+
         return null;
     }
 
     private static void DisableStartupKey(string key)
     {
         const string runPath = @"SOFTWARE\Microsoft\Windows\CurrentVersion\Run";
-        if (key.StartsWith("HKLM:"))
+        if (key.StartsWith("TASK:"))
+        {
+            DisableScheduledTask(key[5..]);
+        }
+        else if (key.StartsWith("HKLM:"))
         {
             using var regKey = Registry.LocalMachine.OpenSubKey(runPath, writable: true);
             regKey?.DeleteValue(key[5..], throwOnMissingValue: false);
@@ -717,6 +728,67 @@ public sealed class TrayApp : ApplicationContext
             using var regKey = Registry.CurrentUser.OpenSubKey(runPath, writable: true);
             regKey?.DeleteValue(key, throwOnMissingValue: false);
         }
+    }
+
+    /// <summary>Scans Task Scheduler for a logon task whose action exe contains processName.</summary>
+    private static string? FindScheduledTask(string processName)
+    {
+        try
+        {
+            Type? t = Type.GetTypeFromProgID("Schedule.Service");
+            if (t == null) return null;
+            dynamic svc = Activator.CreateInstance(t)!;
+            svc.Connect();
+            return ScanTaskFolder(svc.GetFolder("\\"), processName);
+        }
+        catch { return null; }
+    }
+
+    private static string? ScanTaskFolder(dynamic folder, string processName)
+    {
+        try
+        {
+            foreach (dynamic task in folder.GetTasks(0))
+            {
+                try
+                {
+                    foreach (dynamic action in task.Definition.Actions)
+                    {
+                        try
+                        {
+                            string? exePath = action.Path as string;
+                            if (exePath != null && exePath.Contains(processName, StringComparison.OrdinalIgnoreCase))
+                                return (string)task.Path;
+                        }
+                        catch { }
+                    }
+                }
+                catch { }
+            }
+            foreach (dynamic sub in folder.GetFolders(0))
+            {
+                string? found = ScanTaskFolder(sub, processName);
+                if (found != null) return found;
+            }
+        }
+        catch { }
+        return null;
+    }
+
+    private static void DisableScheduledTask(string taskPath)
+    {
+        try
+        {
+            var psi = new System.Diagnostics.ProcessStartInfo(
+                "schtasks", $"/change /tn \"{taskPath}\" /disable")
+            {
+                UseShellExecute = false,
+                CreateNoWindow  = true,
+            };
+            using var p = System.Diagnostics.Process.Start(psi);
+            p?.WaitForExit(5000);
+        }
+        catch { }
     }
 
     private void OnExit(object? sender, EventArgs e)
