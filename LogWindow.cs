@@ -7,6 +7,7 @@ namespace V2XAmbilight;
 internal sealed class LogWindow : Form
 {
     private readonly RichTextBox _box;
+    private bool _allowClose;
     private const int MaxLines = 500;
 
     public LogWindow()
@@ -44,14 +45,16 @@ internal sealed class LogWindow : Form
         Controls.Add(_box);
         Controls.Add(clear);
 
-        // Don't destroy on close — just hide, so log persists
-        FormClosing += (_, e) => { e.Cancel = true; Hide(); };
+        // Hide instead of close when user clicks X, but allow real disposal on app exit
+        FormClosing += (_, e) => { if (!_allowClose) { e.Cancel = true; Hide(); } };
 
         // Force handle creation so BeginInvoke works before the window is ever shown
         _ = Handle;
 
         Append("Log started.");
     }
+
+    public void AllowClose() => _allowClose = true;
 
     public void Append(string message)
     {
