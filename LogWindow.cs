@@ -47,6 +47,9 @@ internal sealed class LogWindow : Form
         // Don't destroy on close — just hide, so log persists
         FormClosing += (_, e) => { e.Cancel = true; Hide(); };
 
+        // Force handle creation so BeginInvoke works before the window is ever shown
+        _ = Handle;
+
         Append("Log started.");
     }
 

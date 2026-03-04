@@ -144,7 +144,23 @@ public sealed class TrayApp : ApplicationContext
             catch (OperationCanceledException) { break; }
             catch (Exception ex)
             {
-                _log.Append($"Connect failed: {ex.Message} — retrying in 5 s");
+                bool denied = ex.Message.Contains("denied", StringComparison.OrdinalIgnoreCase)
+                           || ex.Message.Contains("Access", StringComparison.OrdinalIgnoreCase);
+
+                string? blocker = denied ? FindPortBlocker() : null;
+
+                if (blocker != null)
+                {
+                    _log.Append($"Port blocked by '{blocker}' — close it, then the app will reconnect automatically.");
+                    _tray.ContextMenuStrip!.Invoke(() =>
+                        _tray.ShowBalloonTip(6000, "V2X Ambilight",
+                            $"Close '{blocker}' to allow V2X Ambilight to connect.", ToolTipIcon.Warning));
+                }
+                else
+                {
+                    _log.Append($"Connect failed: {ex.Message} — retrying in 5 s");
+                }
+
                 SetStatus(Status.Disconnected);
                 await Task.Delay(5000, ct).ConfigureAwait(false);
             }
@@ -265,6 +281,18 @@ public sealed class TrayApp : ApplicationContext
             key.SetValue("V2XAmbilight", $"\"{Application.ExecutablePath}\"");
         else
             key.DeleteValue("V2XAmbilight", throwOnMissingValue: false);
+    }
+
+    private static string? FindPortBlocker()
+    {
+        // Known Creative Sound Blaster processes that may hold the COM port
+        string[] candidates = ["SBCommand", "CTAudSvc", "V2XBridge", "SBConsole"];
+        foreach (string name in candidates)
+        {
+            if (System.Diagnostics.Process.GetProcessesByName(name).Length > 0)
+                return name;
+        }
+        return null;
     }
 
     private void OnExit(object? sender, EventArgs e)
