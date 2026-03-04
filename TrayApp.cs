@@ -23,6 +23,12 @@ public sealed class TrayApp : ApplicationContext
     private Status _status = Status.Disconnected;
     private bool _conflictDialogShown = false;
 
+    // Pre-cached status icons — never recreated mid-session to avoid GDI+ errors
+    // when the display is off or the session is locked.
+    private readonly Icon _iconGray   = MakeIcon(Color.Gray);
+    private readonly Icon _iconOrange = MakeIcon(Color.Orange);
+    private readonly Icon _iconLime   = MakeIcon(Color.Lime);
+
     // -------------------------------------------------------------------------
     // UI controls
     // -------------------------------------------------------------------------
@@ -110,6 +116,9 @@ public sealed class TrayApp : ApplicationContext
 
         // Ensure the app is installed and searchable via Start Menu
         EnsureInstalled();
+
+        // Pause capture when session is locked / screensaver active, resume on unlock
+        Microsoft.Win32.SystemEvents.SessionSwitch += OnSessionSwitch;
 
         // Start device connection loop in background
         _ = ConnectLoopAsync(_cts.Token);
@@ -218,17 +227,12 @@ public sealed class TrayApp : ApplicationContext
 
     private void ApplyStatus(Status status)
     {
-        var (color, tip) = status switch
+        (_tray.Icon, _tray.Text) = status switch
         {
-            Status.Connected    => (Color.Lime,   "V2X Ambilight — Connected"),
-            Status.Connecting   => (Color.Orange,  "V2X Ambilight — Connecting…"),
-            _                   => (Color.Gray,    "V2X Ambilight — Device not found"),
+            Status.Connected  => (_iconLime,   "V2X Ambilight — Connected"),
+            Status.Connecting => (_iconOrange, "V2X Ambilight — Connecting…"),
+            _                 => (_iconGray,   "V2X Ambilight — Device not found"),
         };
-
-        var old = _tray.Icon;
-        _tray.Icon = MakeIcon(color);
-        _tray.Text = tip;
-        old?.Dispose();
     }
 
     private static Icon MakeIcon(Color color)
@@ -850,6 +854,27 @@ public sealed class TrayApp : ApplicationContext
         catch { }
     }
 
+    private void OnSessionSwitch(object sender, Microsoft.Win32.SessionSwitchEventArgs e)
+    {
+        switch (e.Reason)
+        {
+            case Microsoft.Win32.SessionSwitchReason.SessionLock:
+            case Microsoft.Win32.SessionSwitchReason.ConsoleDisconnect:
+                _timer.Stop();
+                _log.Append("Session locked — capture paused.");
+                break;
+
+            case Microsoft.Win32.SessionSwitchReason.SessionUnlock:
+            case Microsoft.Win32.SessionSwitchReason.ConsoleConnect:
+                if (_settings.Enabled && _device.IsConnected)
+                {
+                    _timer.Start();
+                    _log.Append("Session unlocked — capture resumed.");
+                }
+                break;
+        }
+    }
+
     private void OnExit(object? sender, EventArgs e)
     {
         _cts.Cancel();
@@ -869,11 +894,15 @@ public sealed class TrayApp : ApplicationContext
     {
         if (disposing)
         {
+            Microsoft.Win32.SystemEvents.SessionSwitch -= OnSessionSwitch;
             _cts.Cancel();
             _cts.Dispose();
             _timer.Dispose();
             _device.Dispose();
             _sampler.Dispose();
+            _iconGray.Dispose();
+            _iconOrange.Dispose();
+            _iconLime.Dispose();
             _tray.Dispose();
             _log.Dispose();
         }
