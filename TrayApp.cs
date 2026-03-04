@@ -118,7 +118,8 @@ public sealed class TrayApp : ApplicationContext
         EnsureInstalled();
 
         // Pause capture when session is locked / screensaver active, resume on unlock
-        Microsoft.Win32.SystemEvents.SessionSwitch += OnSessionSwitch;
+        Microsoft.Win32.SystemEvents.SessionSwitch  += OnSessionSwitch;
+        Microsoft.Win32.SystemEvents.PowerModeChanged += OnPowerModeChanged;
 
         // Start device connection loop in background
         _ = ConnectLoopAsync(_cts.Token);
@@ -141,9 +142,19 @@ public sealed class TrayApp : ApplicationContext
         var screens = Screen.AllScreens;
         int idx = Math.Clamp(_settings.MonitorIndex, 0, screens.Length - 1);
 
+        byte[] colors;
         try
         {
-            byte[] colors = _sampler.Sample(screens[idx], _settings.StripPercent);
+            colors = _sampler.Sample(screens[idx], _settings.StripPercent);
+        }
+        catch
+        {
+            // Screen capture failed (display off, screensaver, etc.) — skip frame, keep device
+            return;
+        }
+
+        try
+        {
             ProcessColors(colors, _settings.Brightness, _settings.Saturation);
             ApplySmoothing(colors, _lastColors, _settings.Smoothing);
             _device.SetColors(colors);
@@ -854,6 +865,24 @@ public sealed class TrayApp : ApplicationContext
         catch { }
     }
 
+    private void OnPowerModeChanged(object sender, Microsoft.Win32.PowerModeChangedEventArgs e)
+    {
+        switch (e.Mode)
+        {
+            case Microsoft.Win32.PowerModes.Suspend:
+                _timer.Stop();
+                _log.Append("System suspending — capture paused.");
+                break;
+            case Microsoft.Win32.PowerModes.Resume:
+                if (_settings.Enabled && _device.IsConnected)
+                {
+                    _timer.Start();
+                    _log.Append("System resumed — capture resumed.");
+                }
+                break;
+        }
+    }
+
     private void OnSessionSwitch(object sender, Microsoft.Win32.SessionSwitchEventArgs e)
     {
         switch (e.Reason)
@@ -894,7 +923,8 @@ public sealed class TrayApp : ApplicationContext
     {
         if (disposing)
         {
-            Microsoft.Win32.SystemEvents.SessionSwitch -= OnSessionSwitch;
+            Microsoft.Win32.SystemEvents.SessionSwitch    -= OnSessionSwitch;
+            Microsoft.Win32.SystemEvents.PowerModeChanged -= OnPowerModeChanged;
             _cts.Cancel();
             _cts.Dispose();
             _timer.Dispose();
