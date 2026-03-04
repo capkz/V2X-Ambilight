@@ -8,10 +8,6 @@
     <ImplicitUsings>enable</ImplicitUsings>
     <AssemblyName>V2XAmbilight</AssemblyName>
     <ApplicationHighDpiMode>SystemAware</ApplicationHighDpiMode>
-    <PublishTrimmed>true</PublishTrimmed>
-    <TrimmerRootDescriptor>TrimmerRoots.xml</TrimmerRootDescriptor>
-    <_SuppressWindowsFormsTrimError>true</_SuppressWindowsFormsTrimError>
-    <SuppressTrimAnalysisWarnings>true</SuppressTrimAnalysisWarnings>
   </PropertyGroup>
 
   <ItemGroup>
