@@ -110,6 +110,9 @@ public sealed class TrayApp : ApplicationContext
         // Start device connection loop in background
         _ = ConnectLoopAsync(_cts.Token);
 
+        // Warn about conflicting apps at startup
+        _ = CheckConflictingAppsAsync();
+
         // Check for updates shortly after startup
         _ = CheckForUpdateAsync();
     }
@@ -555,6 +558,166 @@ public sealed class TrayApp : ApplicationContext
                 return name;
         }
         return null;
+    }
+
+    // -------------------------------------------------------------------------
+    // Proactive conflict detection
+    // -------------------------------------------------------------------------
+
+    private async Task CheckConflictingAppsAsync()
+    {
+        await Task.Delay(1500).ConfigureAwait(false); // let the app settle
+        if (_settings.SuppressConflictWarning) return;
+
+        string? blocker = FindPortBlocker();
+        if (blocker == null) return;
+
+        _log.BeginInvoke(() => ShowConflictDialog(blocker));
+    }
+
+    private void ShowConflictDialog(string processName)
+    {
+        string? startupKey = FindStartupKey(processName);
+        bool hasStartup    = startupKey != null;
+
+        int formHeight = hasStartup ? 255 : 225;
+        using var form = new Form
+        {
+            Text            = "V2X Ambilight — Conflicting App Detected",
+            Width           = 450,
+            Height          = formHeight,
+            FormBorderStyle = FormBorderStyle.FixedDialog,
+            StartPosition   = FormStartPosition.CenterScreen,
+            MinimizeBox     = false,
+            MaximizeBox     = false,
+        };
+
+        var icon = new PictureBox
+        {
+            Image    = SystemIcons.Warning.ToBitmap(),
+            SizeMode = PictureBoxSizeMode.StretchImage,
+            Left = 14, Top = 14, Width = 36, Height = 36,
+        };
+
+        var label = new Label
+        {
+            Text     = $"'{processName}' is currently running and may prevent\n"
+                     + $"V2X Ambilight from accessing the Katana V2X.\n\n"
+                     + $"Close or quit '{processName}' — V2X Ambilight will\n"
+                     + $"reconnect automatically once it is gone.",
+            Left = 60, Top = 12, Width = 365, Height = 88,
+            AutoSize = false,
+        };
+
+        int nextY = 106;
+
+        var killBtn = new Button
+        {
+            Text   = $"Close '{processName}'",
+            Left   = 60, Top = nextY, Width = 190, Height = 26,
+        };
+        killBtn.Click += (_, _) =>
+        {
+            foreach (var p in System.Diagnostics.Process.GetProcessesByName(processName))
+            {
+                try { p.Kill(); } catch { }
+            }
+            killBtn.Enabled = false;
+            killBtn.Text    = "Closed";
+        };
+        nextY += 36;
+
+        Button? disableBtn = null;
+        if (hasStartup)
+        {
+            disableBtn = new Button
+            {
+                Text   = $"Disable '{processName}' autostart",
+                Left   = 60, Top = nextY, Width = 230, Height = 26,
+            };
+            disableBtn.Click += (_, _) =>
+            {
+                DisableStartupKey(startupKey!);
+                disableBtn.Enabled = false;
+                disableBtn.Text    = "Autostart disabled";
+            };
+            nextY += 36;
+        }
+
+        var suppress = new CheckBox
+        {
+            Text = "Don't show this warning again",
+            Left = 14, Top = nextY, Width = 240, Height = 22,
+        };
+
+        var ok = new Button
+        {
+            Text         = "OK",
+            Left         = 344, Top = nextY - 2, Width = 80, Height = 26,
+            DialogResult = DialogResult.OK,
+        };
+
+        form.Controls.Add(icon);
+        form.Controls.Add(label);
+        form.Controls.Add(killBtn);
+        if (disableBtn != null) form.Controls.Add(disableBtn);
+        form.Controls.Add(suppress);
+        form.Controls.Add(ok);
+        form.AcceptButton = ok;
+
+        form.ShowDialog();
+
+        if (suppress.Checked)
+        {
+            _settings.SuppressConflictWarning = true;
+            _settings.Save();
+        }
+    }
+
+    /// <summary>Finds a startup registry entry whose exe path contains the process name.</summary>
+    private static string? FindStartupKey(string processName)
+    {
+        const string runPath = @"SOFTWARE\Microsoft\Windows\CurrentVersion\Run";
+
+        using var hkcu = Registry.CurrentUser.OpenSubKey(runPath);
+        if (hkcu != null)
+        {
+            foreach (string name in hkcu.GetValueNames())
+            {
+                string? val = hkcu.GetValue(name) as string;
+                if (val != null && val.Contains(processName, StringComparison.OrdinalIgnoreCase))
+                    return name; // HKCU key name
+            }
+        }
+
+        // HKLM (read-only check — we won't offer to delete HKLM keys we can't write)
+        using var hklm = Registry.LocalMachine.OpenSubKey(runPath);
+        if (hklm != null)
+        {
+            foreach (string name in hklm.GetValueNames())
+            {
+                string? val = hklm.GetValue(name) as string;
+                if (val != null && val.Contains(processName, StringComparison.OrdinalIgnoreCase))
+                    return "HKLM:" + name;
+            }
+        }
+
+        return null;
+    }
+
+    private static void DisableStartupKey(string key)
+    {
+        const string runPath = @"SOFTWARE\Microsoft\Windows\CurrentVersion\Run";
+        if (key.StartsWith("HKLM:"))
+        {
+            using var regKey = Registry.LocalMachine.OpenSubKey(runPath, writable: true);
+            regKey?.DeleteValue(key[5..], throwOnMissingValue: false);
+        }
+        else
+        {
+            using var regKey = Registry.CurrentUser.OpenSubKey(runPath, writable: true);
+            regKey?.DeleteValue(key, throwOnMissingValue: false);
+        }
     }
 
     private void OnExit(object? sender, EventArgs e)

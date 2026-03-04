@@ -12,6 +12,7 @@ public sealed class Settings
     public float Brightness        { get; set; } = 1.0f;
     public float Saturation        { get; set; } = 1.0f;
     public float Smoothing         { get; set; } = 0.0f;
+    public bool  SuppressConflictWarning { get; set; } = false;
 
     private static readonly string FilePath = Path.Combine(
         Environment.GetFolderPath(Environment.SpecialFolder.ApplicationData),
