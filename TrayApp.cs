@@ -16,6 +16,7 @@ public sealed class TrayApp : ApplicationContext
     private readonly KatanaDevice _device;
     private readonly ScreenSampler _sampler;
     private readonly CancellationTokenSource _cts = new();
+    private readonly LogWindow _log;
 
     private enum Status { Disconnected, Connecting, Connected }
     private Status _status = Status.Disconnected;
@@ -37,7 +38,8 @@ public sealed class TrayApp : ApplicationContext
 
     public TrayApp()
     {
-        _device = new KatanaDevice(_ => { }); // status conveyed via tray icon
+        _log    = new LogWindow();
+        _device = new KatanaDevice(_log.Append);
         _sampler = new ScreenSampler();
 
         // --- Tray icon ---
@@ -71,6 +73,7 @@ public sealed class TrayApp : ApplicationContext
             _stripMenu,
             new ToolStripSeparator(),
             _startupItem,
+            new ToolStripMenuItem("Show Log", null, (_, _) => _log.Show()),
             new ToolStripSeparator(),
             new ToolStripMenuItem("Exit", null, OnExit),
         ]);
@@ -105,9 +108,10 @@ public sealed class TrayApp : ApplicationContext
             byte[] colors = _sampler.Sample(screens[idx], _settings.StripPercent);
             _device.SetColors(colors);
         }
-        catch
+        catch (Exception ex)
         {
             // Device disconnected mid-session — stop timer, let connect loop retry
+            _log.Append($"Device error: {ex.Message}");
             _device.Disconnect();
             _timer.Stop();
             SetStatus(Status.Disconnected);
@@ -138,10 +142,11 @@ public sealed class TrayApp : ApplicationContext
                 _tray.ContextMenuStrip!.Invoke(_timer.Start);
             }
             catch (OperationCanceledException) { break; }
-            catch
+            catch (Exception ex)
             {
+                _log.Append($"Connect failed: {ex.Message} — retrying in 5 s");
                 SetStatus(Status.Disconnected);
-                await Task.Delay(5000, ct).ConfigureAwait(false); // retry every 5 s
+                await Task.Delay(5000, ct).ConfigureAwait(false);
             }
         }
     }
@@ -286,6 +291,7 @@ public sealed class TrayApp : ApplicationContext
             _device.Dispose();
             _sampler.Dispose();
             _tray.Dispose();
+            _log.Dispose();
         }
         base.Dispose(disposing);
     }
