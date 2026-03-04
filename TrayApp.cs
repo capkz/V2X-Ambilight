@@ -30,6 +30,8 @@ public sealed class TrayApp : ApplicationContext
     private readonly ToolStripMenuItem _enabledItem;
     private readonly ToolStripMenuItem _monitorMenu;
     private readonly ToolStripMenuItem _stripMenu;
+    private readonly ToolStripMenuItem _brightnessMenu;
+    private readonly ToolStripMenuItem _saturationMenu;
     private readonly ToolStripMenuItem _startupItem;
     private readonly ToolStripMenuItem _updateItem;
 
@@ -61,11 +63,15 @@ public sealed class TrayApp : ApplicationContext
         _startupItem = new ToolStripMenuItem("Start with Windows", null, OnToggleStartup)
             { Checked = _settings.StartWithWindows, CheckOnClick = true };
 
-        _updateItem = new ToolStripMenuItem("Update Available!", null, OnUpdateClick)
+        _updateItem     = new ToolStripMenuItem("Update Available!", null, OnUpdateClick)
             { Visible = false };
+        _brightnessMenu = new ToolStripMenuItem("Brightness");
+        _saturationMenu = new ToolStripMenuItem("Vibrancy");
 
         BuildMonitorMenu();
         BuildStripMenu();
+        BuildBrightnessMenu();
+        BuildSaturationMenu();
 
         _tray.ContextMenuStrip = new ContextMenuStrip();
         _tray.ContextMenuStrip.Items.AddRange([
@@ -76,6 +82,8 @@ public sealed class TrayApp : ApplicationContext
             new ToolStripSeparator(),
             _monitorMenu,
             _stripMenu,
+            _brightnessMenu,
+            _saturationMenu,
             new ToolStripSeparator(),
             _startupItem,
             new ToolStripMenuItem("Check for Updates", null, OnCheckUpdate),
@@ -115,6 +123,7 @@ public sealed class TrayApp : ApplicationContext
         try
         {
             byte[] colors = _sampler.Sample(screens[idx], _settings.StripPercent);
+            ProcessColors(colors, _settings.Brightness, _settings.Saturation);
             _device.SetColors(colors);
         }
         catch (Exception ex)
@@ -249,6 +258,75 @@ public sealed class TrayApp : ApplicationContext
             _stripMenu.DropDownItems.Add(
                 new ToolStripMenuItem($"{pct}%", null, (_, _) => SelectStrip(p))
                     { Checked = _settings.StripPercent == pct });
+        }
+    }
+
+    private void BuildBrightnessMenu()
+    {
+        _brightnessMenu.DropDownItems.Clear();
+        foreach (float v in new[] { 0.5f, 0.75f, 1.0f, 1.25f, 1.5f, 2.0f })
+        {
+            float val = v;
+            string label = v == 1.0f ? "100% (default)" : $"{(int)(v * 100)}%";
+            _brightnessMenu.DropDownItems.Add(
+                new ToolStripMenuItem(label, null, (_, _) => SelectBrightness(val))
+                    { Checked = Math.Abs(_settings.Brightness - v) < 0.01f });
+        }
+    }
+
+    private void BuildSaturationMenu()
+    {
+        _saturationMenu.DropDownItems.Clear();
+        foreach (float v in new[] { 0.5f, 1.0f, 1.5f, 2.0f, 3.0f })
+        {
+            float val = v;
+            string label = v == 1.0f ? "100% (default)" : $"{(int)(v * 100)}%";
+            _saturationMenu.DropDownItems.Add(
+                new ToolStripMenuItem(label, null, (_, _) => SelectSaturation(val))
+                    { Checked = Math.Abs(_settings.Saturation - v) < 0.01f });
+        }
+    }
+
+    private void SelectBrightness(float v)
+    {
+        _settings.Brightness = v;
+        _settings.Save();
+        BuildBrightnessMenu();
+    }
+
+    private void SelectSaturation(float v)
+    {
+        _settings.Saturation = v;
+        _settings.Save();
+        BuildSaturationMenu();
+    }
+
+    private static void ProcessColors(byte[] colors, float brightness, float saturation)
+    {
+        for (int i = 0; i < colors.Length; i += 3)
+        {
+            float r = colors[i], g = colors[i + 1], b = colors[i + 2];
+
+            // Saturation: interpolate between luminance and original color
+            if (Math.Abs(saturation - 1f) > 0.01f)
+            {
+                float lum = 0.299f * r + 0.587f * g + 0.114f * b;
+                r = lum + saturation * (r - lum);
+                g = lum + saturation * (g - lum);
+                b = lum + saturation * (b - lum);
+            }
+
+            // Brightness: scale all channels
+            if (Math.Abs(brightness - 1f) > 0.01f)
+            {
+                r *= brightness;
+                g *= brightness;
+                b *= brightness;
+            }
+
+            colors[i]     = (byte)Math.Clamp(r, 0, 255);
+            colors[i + 1] = (byte)Math.Clamp(g, 0, 255);
+            colors[i + 2] = (byte)Math.Clamp(b, 0, 255);
         }
     }
 
