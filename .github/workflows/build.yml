@@ -26,8 +26,8 @@ jobs:
       - name: Publish self-contained exe
         run: |
           dotnet publish V2XAmbilight.csproj `
-            -c Release -r win-x64 --self-contained `
-            -p:PublishSingleFile=true -p:PublishTrimmed=true `
+            -c Release -r win-x64 `
+            -p:PublishSingleFile=true `
             -o dist
 
       - name: Upload to GitHub Releases
