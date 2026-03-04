@@ -302,6 +302,7 @@ public sealed class TrayApp : ApplicationContext
 
         try { _device.SetColors(new byte[21]); } catch { } // LEDs off
         _tray.Visible = false;
+        _log.AllowClose();
         Application.Exit();
     }
 
