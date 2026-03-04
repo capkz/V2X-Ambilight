@@ -658,10 +658,28 @@ public sealed class TrayApp : ApplicationContext
         };
         killBtn.Click += (_, _) =>
         {
+            bool needsElevation = false;
             foreach (var p in System.Diagnostics.Process.GetProcessesByName(processName))
             {
-                try { p.Kill(); } catch { }
+                try { p.Kill(); }
+                catch (System.ComponentModel.Win32Exception) { needsElevation = true; }
+                catch { }
             }
+
+            if (needsElevation)
+            {
+                try
+                {
+                    System.Diagnostics.Process.Start(new System.Diagnostics.ProcessStartInfo(
+                        Application.ExecutablePath, $"--kill {processName}")
+                    {
+                        UseShellExecute = true,
+                        Verb            = "runas",
+                    });
+                }
+                catch { return; } // user cancelled UAC
+            }
+
             killBtn.Enabled = false;
             killBtn.Text    = "Closed";
         };
