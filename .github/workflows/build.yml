@@ -27,7 +27,7 @@ jobs:
         run: |
           dotnet publish V2XAmbilight.csproj `
             -c Release -r win-x64 --self-contained `
-            -p:PublishSingleFile=true -p:PublishReadyToRun=true `
+            -p:PublishSingleFile=true -p:PublishTrimmed=true `
             -o dist
 
       - name: Commit V2XAmbilight.exe
