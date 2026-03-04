@@ -37,10 +37,6 @@ static class Program
             Directory.CreateDirectory(Path.GetDirectoryName(CrashLog)!);
             File.AppendAllText(CrashLog,
                 $"[{DateTime.Now:yyyy-MM-dd HH:mm:ss}] {ex}\n\n");
-
-            MessageBox.Show(
-                $"V2X Ambilight crashed:\n\n{ex.Message}\n\nSee: {CrashLog}",
-                "V2X Ambilight — Crash", MessageBoxButtons.OK, MessageBoxIcon.Error);
         }
         catch { }
     }
