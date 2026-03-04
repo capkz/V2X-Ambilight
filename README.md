@@ -2,7 +2,7 @@
 
 Lightweight Windows tray app that samples the bottom strip of your screen and drives the 7 LEDs on a **Creative Sound Blaster Katana V2X** in real time — no V2XBridge service, no drivers, talks directly to the device.
 
-![tray icon green](https://img.shields.io/badge/status-active-brightgreen) ![license](https://img.shields.io/badge/license-GPL--v3-blue)
+![tray icon green](https://img.shields.io/badge/status-active-brightgreen) ![license](https://img.shields.io/badge/license-GPL--v3-blue) [![ko-fi](https://ko-fi.com/img/githubbutton_sm.svg)](https://ko-fi.com/chaul)
 
 ---
 
@@ -72,6 +72,10 @@ Or push to GitHub — CI builds and publishes to Releases automatically.
 - COM port auto-detected via WMI (VID/PID match)
 - AES-256-GCM challenge-response auth, then binary LED packets
 - LED packet: `5A 3A 20 2B 00 01 01` + 7×`[0xFF, B, G, R]` = 35 bytes
+
+## Support
+
+If this saved you some time and you want to buy me a coffee — [ko-fi.com/chaul](https://ko-fi.com/chaul) 🙏
 
 ## License
 
