@@ -139,7 +139,7 @@ public sealed class TrayApp : ApplicationContext
                 SetStatus(Status.Connected);
 
                 // Start timer on UI thread
-                _tray.ContextMenuStrip!.Invoke(_timer.Start);
+                _log.Invoke(_timer.Start);
             }
             catch (OperationCanceledException) { break; }
             catch (Exception ex)
@@ -177,8 +177,8 @@ public sealed class TrayApp : ApplicationContext
         _status = status;
 
         // Icon updates must be on the UI thread
-        if (_tray.ContextMenuStrip?.InvokeRequired == true)
-            _tray.ContextMenuStrip.Invoke(() => ApplyStatus(status));
+        if (_log.InvokeRequired)
+            _log.BeginInvoke(() => ApplyStatus(status));
         else
             ApplyStatus(status);
     }
