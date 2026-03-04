@@ -4,6 +4,8 @@ Lightweight Windows tray app that samples the bottom strip of your screen and dr
 
 ![tray icon green](https://img.shields.io/badge/status-active-brightgreen) ![license](https://img.shields.io/badge/license-GPL--v3-blue) [![ko-fi](https://ko-fi.com/img/githubbutton_sm.svg)](https://ko-fi.com/chaul)
 
+![demo](demo.gif)
+
 ---
 
 ## Features
