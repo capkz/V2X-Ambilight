@@ -23,17 +23,18 @@ jobs:
         with:
           dotnet-version: '8.0.x'
 
-      - name: Publish self-contained exe
+      - name: Publish
         run: |
+          $version = "1.0.${{ github.run_number }}"
           dotnet publish V2XAmbilight.csproj `
             -c Release -r win-x64 --no-self-contained `
             -p:PublishSingleFile=true `
+            -p:Version=$version `
             -o dist
 
       - name: Upload to GitHub Releases
         uses: softprops/action-gh-release@v2
         with:
-          tag_name: latest
-          name: Latest Build
-          prerelease: true
+          tag_name: "v1.0.${{ github.run_number }}"
+          name: "V2X Ambilight v1.0.${{ github.run_number }}"
           files: dist/V2XAmbilight.exe
