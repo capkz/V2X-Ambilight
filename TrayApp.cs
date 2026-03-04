@@ -17,6 +17,7 @@ public sealed class TrayApp : ApplicationContext
     private readonly ScreenSampler _sampler;
     private readonly CancellationTokenSource _cts = new();
     private readonly LogWindow _log;
+    private byte[] _lastColors = new byte[21];
 
     private enum Status { Disconnected, Connecting, Connected }
     private Status _status = Status.Disconnected;
@@ -32,6 +33,7 @@ public sealed class TrayApp : ApplicationContext
     private readonly ToolStripMenuItem _stripMenu;
     private readonly ToolStripMenuItem _brightnessMenu;
     private readonly ToolStripMenuItem _saturationMenu;
+    private readonly ToolStripMenuItem _smoothingMenu;
     private readonly ToolStripMenuItem _startupItem;
     private readonly ToolStripMenuItem _updateItem;
 
@@ -67,11 +69,13 @@ public sealed class TrayApp : ApplicationContext
             { Visible = false };
         _brightnessMenu = new ToolStripMenuItem("Brightness");
         _saturationMenu = new ToolStripMenuItem("Vibrancy");
+        _smoothingMenu  = new ToolStripMenuItem("Smoothing");
 
         BuildMonitorMenu();
         BuildStripMenu();
         BuildBrightnessMenu();
         BuildSaturationMenu();
+        BuildSmoothingMenu();
 
         _tray.ContextMenuStrip = new ContextMenuStrip();
         _tray.ContextMenuStrip.Items.AddRange([
@@ -84,6 +88,7 @@ public sealed class TrayApp : ApplicationContext
             _stripMenu,
             _brightnessMenu,
             _saturationMenu,
+            _smoothingMenu,
             new ToolStripSeparator(),
             _startupItem,
             new ToolStripMenuItem("Check for Updates", null, OnCheckUpdate),
@@ -124,6 +129,7 @@ public sealed class TrayApp : ApplicationContext
         {
             byte[] colors = _sampler.Sample(screens[idx], _settings.StripPercent);
             ProcessColors(colors, _settings.Brightness, _settings.Saturation);
+            ApplySmoothing(colors, _lastColors, _settings.Smoothing);
             _device.SetColors(colors);
         }
         catch (Exception ex)
@@ -252,19 +258,31 @@ public sealed class TrayApp : ApplicationContext
     private void BuildStripMenu()
     {
         _stripMenu.DropDownItems.Clear();
-        foreach (int pct in new[] { 3, 5, 10, 15 })
+        int[] presets = [3, 5, 10, 15];
+        foreach (int pct in presets)
         {
             int p = pct;
             _stripMenu.DropDownItems.Add(
                 new ToolStripMenuItem($"{pct}%", null, (_, _) => SelectStrip(p))
                     { Checked = _settings.StripPercent == pct });
         }
+        // Show custom value if it doesn't match a preset
+        bool isCustom = !Array.Exists(presets, p => p == _settings.StripPercent);
+        _stripMenu.DropDownItems.Add(new ToolStripSeparator());
+        _stripMenu.DropDownItems.Add(
+            new ToolStripMenuItem(isCustom ? $"Custom ({_settings.StripPercent}%)…" : "Custom…",
+                null, (_, _) =>
+                {
+                    if (PromptPercent("Strip Height (1–50%)", _settings.StripPercent, 1, 50, out int val))
+                        SelectStrip(val);
+                }) { Checked = isCustom });
     }
 
     private void BuildBrightnessMenu()
     {
         _brightnessMenu.DropDownItems.Clear();
-        foreach (float v in new[] { 0.5f, 0.75f, 1.0f, 1.25f, 1.5f, 2.0f })
+        float[] presets = [0.5f, 0.75f, 1.0f, 1.25f, 1.5f, 2.0f];
+        foreach (float v in presets)
         {
             float val = v;
             string label = v == 1.0f ? "100% (default)" : $"{(int)(v * 100)}%";
@@ -272,12 +290,22 @@ public sealed class TrayApp : ApplicationContext
                 new ToolStripMenuItem(label, null, (_, _) => SelectBrightness(val))
                     { Checked = Math.Abs(_settings.Brightness - v) < 0.01f });
         }
+        bool isCustom = !Array.Exists(presets, p => Math.Abs(p - _settings.Brightness) < 0.01f);
+        _brightnessMenu.DropDownItems.Add(new ToolStripSeparator());
+        _brightnessMenu.DropDownItems.Add(
+            new ToolStripMenuItem(isCustom ? $"Custom ({(int)(_settings.Brightness * 100)}%)…" : "Custom…",
+                null, (_, _) =>
+                {
+                    if (PromptPercent("Brightness (10–500%)", (int)(_settings.Brightness * 100), 10, 500, out int val))
+                        SelectBrightness(val / 100f);
+                }) { Checked = isCustom });
     }
 
     private void BuildSaturationMenu()
     {
         _saturationMenu.DropDownItems.Clear();
-        foreach (float v in new[] { 0.5f, 1.0f, 1.5f, 2.0f, 3.0f })
+        float[] presets = [0.5f, 1.0f, 1.5f, 2.0f, 3.0f];
+        foreach (float v in presets)
         {
             float val = v;
             string label = v == 1.0f ? "100% (default)" : $"{(int)(v * 100)}%";
@@ -285,6 +313,38 @@ public sealed class TrayApp : ApplicationContext
                 new ToolStripMenuItem(label, null, (_, _) => SelectSaturation(val))
                     { Checked = Math.Abs(_settings.Saturation - v) < 0.01f });
         }
+        bool isCustom = !Array.Exists(presets, p => Math.Abs(p - _settings.Saturation) < 0.01f);
+        _saturationMenu.DropDownItems.Add(new ToolStripSeparator());
+        _saturationMenu.DropDownItems.Add(
+            new ToolStripMenuItem(isCustom ? $"Custom ({(int)(_settings.Saturation * 100)}%)…" : "Custom…",
+                null, (_, _) =>
+                {
+                    if (PromptPercent("Vibrancy (10–500%)", (int)(_settings.Saturation * 100), 10, 500, out int val))
+                        SelectSaturation(val / 100f);
+                }) { Checked = isCustom });
+    }
+
+    private void BuildSmoothingMenu()
+    {
+        _smoothingMenu.DropDownItems.Clear();
+        float[] presets = [0f, 0.25f, 0.5f, 0.75f, 0.9f];
+        foreach (float v in presets)
+        {
+            float val = v;
+            string label = v == 0f ? "Off (default)" : $"{(int)(v * 100)}%";
+            _smoothingMenu.DropDownItems.Add(
+                new ToolStripMenuItem(label, null, (_, _) => SelectSmoothing(val))
+                    { Checked = Math.Abs(_settings.Smoothing - v) < 0.01f });
+        }
+        bool isCustom = !Array.Exists(presets, p => Math.Abs(p - _settings.Smoothing) < 0.01f);
+        _smoothingMenu.DropDownItems.Add(new ToolStripSeparator());
+        _smoothingMenu.DropDownItems.Add(
+            new ToolStripMenuItem(isCustom ? $"Custom ({(int)(_settings.Smoothing * 100)}%)…" : "Custom…",
+                null, (_, _) =>
+                {
+                    if (PromptPercent("Smoothing (0–99%)", (int)(_settings.Smoothing * 100), 0, 99, out int val))
+                        SelectSmoothing(val / 100f);
+                }) { Checked = isCustom });
     }
 
     private void SelectBrightness(float v)
@@ -299,6 +359,13 @@ public sealed class TrayApp : ApplicationContext
         _settings.Saturation = v;
         _settings.Save();
         BuildSaturationMenu();
+    }
+
+    private void SelectSmoothing(float v)
+    {
+        _settings.Smoothing = v;
+        _settings.Save();
+        BuildSmoothingMenu();
     }
 
     private static void ProcessColors(byte[] colors, float brightness, float saturation)
@@ -328,6 +395,45 @@ public sealed class TrayApp : ApplicationContext
             colors[i + 1] = (byte)Math.Clamp(g, 0, 255);
             colors[i + 2] = (byte)Math.Clamp(b, 0, 255);
         }
+    }
+
+    private static void ApplySmoothing(byte[] current, byte[] last, float smoothing)
+    {
+        if (smoothing < 0.01f) { Array.Copy(current, last, current.Length); return; }
+        for (int i = 0; i < current.Length; i++)
+        {
+            current[i] = (byte)Math.Round(last[i] * smoothing + current[i] * (1f - smoothing));
+            last[i] = current[i];
+        }
+    }
+
+    // Shows a small prompt dialog. Returns true if the user entered a valid value.
+    private static bool PromptPercent(string title, int current, int min, int max, out int result)
+    {
+        result = current;
+        using var form = new Form
+        {
+            Text = title, Width = 260, Height = 120,
+            FormBorderStyle = FormBorderStyle.FixedDialog,
+            StartPosition   = FormStartPosition.CenterScreen,
+            MinimizeBox = false, MaximizeBox = false,
+        };
+        var tb  = new TextBox  { Text = current.ToString(), Left = 10, Top = 10, Width = 220 };
+        var ok  = new Button   { Text = "OK",     Left = 60,  Top = 42, Width = 80, DialogResult = DialogResult.OK };
+        var cancel = new Button{ Text = "Cancel", Left = 150, Top = 42, Width = 80, DialogResult = DialogResult.Cancel };
+        form.Controls.AddRange([tb, ok, cancel]);
+        form.AcceptButton = ok;
+        form.CancelButton = cancel;
+
+        if (form.ShowDialog() != DialogResult.OK) return false;
+        if (!int.TryParse(tb.Text.Trim().TrimEnd('%'), out int v) || v < min || v > max)
+        {
+            MessageBox.Show($"Enter a number between {min} and {max}.", title,
+                MessageBoxButtons.OK, MessageBoxIcon.Warning);
+            return false;
+        }
+        result = v;
+        return true;
     }
 
     private void SelectMonitor(int idx)
