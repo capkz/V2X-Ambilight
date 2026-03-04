@@ -13,6 +13,8 @@
   <ItemGroup>
     <!-- WMI for COM port discovery -->
     <PackageReference Include="System.Management" Version="8.0.*" />
+    <!-- SerialPort for COM communication -->
+    <PackageReference Include="System.IO.Ports" Version="8.0.*" />
   </ItemGroup>
 
 </Project>
