@@ -327,7 +327,7 @@ public sealed class TrayApp : ApplicationContext
     private void BuildSmoothingMenu()
     {
         _smoothingMenu.DropDownItems.Clear();
-        float[] presets = [0f, 0.25f, 0.5f, 0.75f, 0.9f];
+        float[] presets = [0f, 0.05f, 0.1f, 0.2f, 0.3f];
         foreach (float v in presets)
         {
             float val = v;
