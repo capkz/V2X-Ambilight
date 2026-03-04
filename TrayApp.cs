@@ -590,7 +590,7 @@ public sealed class TrayApp : ApplicationContext
     private static string? FindPortBlocker()
     {
         // Known Creative Sound Blaster processes that may hold the COM port
-        string[] candidates = ["SBCommand", "CTAudSvc", "V2XBridge", "SBConsole"];
+        string[] candidates = ["SBCommand", "CTAudSvc", "V2XBridge", "SBConsole", "Creative.App"];
         foreach (string name in candidates)
         {
             if (System.Diagnostics.Process.GetProcessesByName(name).Length > 0)
