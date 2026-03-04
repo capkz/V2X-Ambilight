@@ -4,7 +4,7 @@ Lightweight Windows tray app that samples the bottom strip of your screen and dr
 
 ![tray icon green](https://img.shields.io/badge/status-active-brightgreen) ![license](https://img.shields.io/badge/license-GPL--v3-blue) [![ko-fi](https://ko-fi.com/img/githubbutton_sm.svg)](https://ko-fi.com/chaul)
 
-<video src="https://github.com/capkz/V2X-Ambilight/releases/download/v1.0.19/0304.mp4" autoplay loop muted playsinline></video>
+<video src="https://github.com/user-attachments/assets/d90128f5-1d3f-4147-8c57-29737cc4c01c" autoplay loop muted playsinline></video>
 
 ---
 
