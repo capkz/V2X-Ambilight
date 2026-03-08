@@ -351,16 +351,24 @@ public sealed class TrayApp : ApplicationContext
     private void BuildSmoothingMenu()
     {
         _smoothingMenu.DropDownItems.Clear();
-        float[] presets = [0f, 0.05f, 0.1f, 0.2f, 0.3f];
-        foreach (float v in presets)
+        // Values are the old-frame weight: higher = more smoothing / slower response.
+        // 0 = instant (raw), 0.5 = light, 0.75 = medium, 0.85 = heavy, 0.92 = max.
+        (float v, string label)[] presets =
+        [
+            (0f,    "Off (instant)"),
+            (0.5f,  "Light (50%)"),
+            (0.75f, "Medium (75%)"),
+            (0.85f, "Heavy (85%)"),
+            (0.92f, "Max (92%)"),
+        ];
+        foreach (var (v, label) in presets)
         {
             float val = v;
-            string label = v == 0f ? "Off (default)" : $"{(int)(v * 100)}%";
             _smoothingMenu.DropDownItems.Add(
                 new ToolStripMenuItem(label, null, (_, _) => SelectSmoothing(val))
                     { Checked = Math.Abs(_settings.Smoothing - v) < 0.01f });
         }
-        bool isCustom = !Array.Exists(presets, p => Math.Abs(p - _settings.Smoothing) < 0.01f);
+        bool isCustom = !Array.Exists(presets, p => Math.Abs(p.v - _settings.Smoothing) < 0.01f);
         _smoothingMenu.DropDownItems.Add(new ToolStripSeparator());
         _smoothingMenu.DropDownItems.Add(
             new ToolStripMenuItem(isCustom ? $"Custom ({(int)(_settings.Smoothing * 100)}%)…" : "Custom…",
